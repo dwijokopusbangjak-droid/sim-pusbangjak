@@ -38,6 +38,8 @@ export default function LoginPage() {
       // Simpan role & nama di cookie agar Layout Next.js bisa membaca menu yang diizinkan
       document.cookie = `userRole=${userRole}; path=/`;
       document.cookie = `userName=${encodeURIComponent(userName)}; path=/`;
+      
+      router.refresh(); // Hapus cache RSC lama
       router.push('/dashboard');
       
     } catch (err: any) {
