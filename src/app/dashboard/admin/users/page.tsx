@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Users, UserPlus, Search, Shield, Trash2, Mail, Lock, X, Edit } from 'lucide-react';
 import { app, db } from '@/lib/firebase';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
-import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from 'firebase/auth';
 import { initializeApp } from 'firebase/app';
 
 export default function AdminUsersPage() {
@@ -23,6 +23,7 @@ export default function AdminUsersPage() {
   const [editingUserId, setEditingUserId] = useState('');
   const [editNama, setEditNama] = useState('');
   const [editRole, setEditRole] = useState('');
+  const [userEmailForReset, setUserEmailForReset] = useState('');
 
   useEffect(() => {
     const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
@@ -83,6 +84,7 @@ export default function AdminUsersPage() {
     setEditingUserId(user.id);
     setEditNama(user.nama || '');
     setEditRole(user.role || 'anggota');
+    setUserEmailForReset(user.email || '');
     setIsEditModalOpen(true);
   };
 
@@ -116,6 +118,20 @@ export default function AdminUsersPage() {
       } catch (error) {
         console.error("Error deleting user: ", error);
         alert('Gagal menghapus user.');
+      }
+    }
+  };
+
+  const handleResetPassword = async (userEmail: string) => {
+    if (!userEmail) return;
+    if (confirm(`Kirim tautan reset password ke ${userEmail}?`)) {
+      try {
+        const auth = getAuth();
+        await sendPasswordResetEmail(auth, userEmail);
+        alert(`Tautan reset password berhasil dikirim ke ${userEmail}! User dapat mengklik tautan di email mereka untuk membuat password baru.`);
+      } catch (error: any) {
+        console.error("Error sending reset password email: ", error);
+        alert('Gagal mengirim email reset password: ' + error.message);
       }
     }
   };
@@ -257,8 +273,15 @@ export default function AdminUsersPage() {
                   <option value="anggota">Anggota Tim Kerja</option>
                 </select>
                 <p className="text-xs text-slate-500 mt-2">
-                  Catatan: Mengubah alamat Email atau Password hanya dapat dilakukan dari Firebase Console demi keamanan.
+                  Catatan: Demi alasan keamanan sistem (enkripsi Firebase), Admin tidak dapat melihat atau mengetikkan password baru untuk user secara langsung.
                 </p>
+              </div>
+              
+              <div className="pt-2 border-t border-slate-100">
+                <button type="button" onClick={() => handleResetPassword(userEmailForReset)} className="flex items-center text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors">
+                  <Lock className="w-4 h-4 mr-2" />
+                  Kirim Email Reset Password ke User Ini
+                </button>
               </div>
 
               <div className="mt-8 pt-4 border-t border-slate-200 flex justify-end space-x-3">
