@@ -1,83 +1,199 @@
 'use client';
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { auth, db } from '@/lib/firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { Lock, Mail, User, ShieldAlert, ArrowRight, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [role, setRole] = useState('admin');
+  const [isLogin, setIsLogin] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  // Form states
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [nama, setNama] = useState('');
+  const [role, setRole] = useState('admin'); // Default role for testing
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simpan role di cookie agar bisa dibaca oleh layout
-    document.cookie = `userRole=${role}; path=/`;
-    router.push('/dashboard');
+    setLoading(true);
+    setError('');
+
+    try {
+      if (isLogin) {
+        // PROSES LOGIN FIREBASE
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        
+        // Ambil role dari Firestore
+        const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
+        let userRole = 'admin'; // Fallback
+        if (userDoc.exists()) {
+          userRole = userDoc.data().role;
+        }
+
+        // Simpan role di cookie agar Layout Next.js bisa membaca menu yang diizinkan
+        document.cookie = `userRole=${userRole}; path=/`;
+        router.push('/dashboard');
+        
+      } else {
+        // PROSES REGISTRASI FIREBASE
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        
+        // Update Display Name
+        await updateProfile(userCredential.user, {
+          displayName: nama
+        });
+
+        // Simpan data profil & role ke Firestore
+        await setDoc(doc(db, "users", userCredential.user.uid), {
+          uid: userCredential.user.uid,
+          nama: nama,
+          email: email,
+          role: role,
+          createdAt: new Date()
+        });
+
+        // Set cookie & Redirect
+        document.cookie = `userRole=${role}; path=/`;
+        router.push('/dashboard');
+      }
+    } catch (err: any) {
+      console.error(err);
+      // Terjemahkan error Firebase ke Bahasa Indonesia
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        setError('Email atau kata sandi yang Anda masukkan salah.');
+      } else if (err.code === 'auth/email-already-in-use') {
+        setError('Email ini sudah terdaftar. Silakan gunakan tab Masuk.');
+      } else {
+        setError(err.message || 'Terjadi kesalahan pada server. Coba lagi nanti.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
-          <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center shadow-lg">
-            <span className="text-white text-2xl font-bold">PB</span>
+          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg transform rotate-3">
+            <span className="text-white text-2xl font-bold -rotate-3">PB</span>
           </div>
         </div>
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-900">
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-900 tracking-tight">
           SIM Pusbangjak
         </h2>
         <p className="mt-2 text-center text-sm text-slate-600">
-          Simulasi Login - Pilih Role Anda
+          Sistem Informasi Manajemen Kinerja & Layanan Internal
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow-xl sm:rounded-xl sm:px-10 border border-slate-100">
-          <form className="space-y-6" onSubmit={handleLogin}>
+        <div className="bg-white py-8 px-4 shadow-xl sm:rounded-2xl sm:px-10 border border-slate-100">
+          
+          {/* Toggle Login / Register */}
+          <div className="flex bg-slate-100 p-1 rounded-lg mb-8">
+            <button 
+              type="button"
+              onClick={() => {setIsLogin(true); setError('');}}
+              className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${isLogin ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Masuk
+            </button>
+            <button 
+              type="button"
+              onClick={() => {setIsLogin(false); setError('');}}
+              className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${!isLogin ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Daftar Baru
+            </button>
+          </div>
+
+          {error && (
+            <div className="mb-6 bg-rose-50 border-l-4 border-rose-500 p-4 rounded-md flex items-start">
+              <ShieldAlert className="w-5 h-5 text-rose-500 mr-3 shrink-0" />
+              <p className="text-sm text-rose-700 font-medium">{error}</p>
+            </div>
+          )}
+
+          <form className="space-y-5" onSubmit={handleSubmit}>
             
+            {!isLogin && (
+              <>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Nama Lengkap</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <User className="h-5 w-5 text-slate-400" />
+                    </div>
+                    <input type="text" required value={nama} onChange={(e)=>setNama(e.target.value)} className="block w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50 focus:bg-white transition-colors" placeholder="Cth: Andi Jaya, S.Kom." />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Pilih Role Akses</label>
+                  <select value={role} onChange={(e)=>setRole(e.target.value)} className="block w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50">
+                    <option value="admin">Administrator (Akses Penuh)</option>
+                    <option value="kapus">Kepala Pusat</option>
+                    <option value="ktu">Kepala Tata Usaha</option>
+                    <option value="ketua">Ketua Tim Kerja</option>
+                    <option value="anggota">Anggota Tim Kerja</option>
+                  </select>
+                </div>
+              </>
+            )}
+
             <div>
-              <label htmlFor="role" className="block text-sm font-medium text-slate-700">
-                Login Sebagai (Simulasi Role)
-              </label>
-              <div className="mt-1">
-                <select
-                  id="role"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  className="block w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-slate-50"
-                >
-                  <option value="admin">Administrator (Akses Penuh)</option>
-                  <option value="kapus">Kepala Pusat</option>
-                  <option value="ktu">Kepala Tata Usaha</option>
-                  <option value="ketua">Ketua Tim Kerja</option>
-                  <option value="anggota">Anggota Tim Kerja</option>
-                </select>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Email Kedinasan</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-slate-400" />
+                </div>
+                <input type="email" required value={email} onChange={(e)=>setEmail(e.target.value)} className="block w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50 focus:bg-white transition-colors" placeholder="email@pusbangjak.go.id" />
               </div>
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-700">
-                Email atau NIP
-              </label>
-              <div className="mt-1">
-                <input
-                  id="email"
-                  type="text"
-                  className="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-slate-100 cursor-not-allowed"
-                  placeholder="Tidak perlu diisi untuk simulasi"
-                  disabled
-                />
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-semibold text-slate-700">Kata Sandi</label>
+                {isLogin && <a href="#" className="text-xs font-semibold text-blue-600 hover:text-blue-500">Lupa sandi?</a>}
+              </div>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-slate-400" />
+                </div>
+                <input type="password" required value={password} onChange={(e)=>setPassword(e.target.value)} className="block w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50 focus:bg-white transition-colors" placeholder="••••••••" />
               </div>
             </div>
 
-            <div>
+            <div className="pt-2">
               <button
                 type="submit"
-                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                disabled={loading}
+                className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:bg-blue-400"
               >
-                Masuk ke Sistem
+                {loading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    {isLogin ? 'Masuk ke Sistem' : 'Daftar Akun Baru'}
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </>
+                )}
               </button>
             </div>
           </form>
+
         </div>
+        
+        <p className="mt-8 text-center text-xs text-slate-500">
+          Terintegrasi langsung dengan Firebase Authentication & Firestore <br/>
+          &copy; 2026 Pusat Kebijakan Pembangunan.
+        </p>
       </div>
     </div>
   );
