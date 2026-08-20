@@ -77,7 +77,7 @@ export default function LoginPage() {
           <form className="space-y-5" onSubmit={handleSubmit}>
             
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Email Kedinasan</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Email</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Mail className="h-5 w-5 text-slate-400" />
@@ -89,7 +89,7 @@ export default function LoginPage() {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-sm font-semibold text-slate-700">Kata Sandi</label>
-                <a href="#" className="text-xs font-semibold text-blue-600 hover:text-blue-500">Lupa sandi?</a>
+                <button type="button" onClick={() => alert('Silahkan hubungi admin untuk melakukan reset password')} className="text-xs font-semibold text-blue-600 hover:text-blue-500 bg-transparent border-none cursor-pointer">Lupa sandi?</button>
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
