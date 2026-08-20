@@ -23,6 +23,11 @@ export default function AdminUsersPage() {
   const [editingUserId, setEditingUserId] = useState('');
   const [editNama, setEditNama] = useState('');
   const [editRole, setEditRole] = useState('');
+  const [editNip, setEditNip] = useState('');
+  const [editPangkat, setEditPangkat] = useState('');
+  const [editJabatan, setEditJabatan] = useState('');
+  const [editNomorHp, setEditNomorHp] = useState('');
+  const [editAlamat, setEditAlamat] = useState('');
   const [userEmailForReset, setUserEmailForReset] = useState('');
 
   useEffect(() => {
@@ -84,6 +89,11 @@ export default function AdminUsersPage() {
     setEditingUserId(user.id);
     setEditNama(user.nama || '');
     setEditRole(user.role || 'anggota');
+    setEditNip(user.nip || '');
+    setEditPangkat(user.pangkat || 'Belum diisi');
+    setEditJabatan(user.jabatan || '');
+    setEditNomorHp(user.nomorHp || '');
+    setEditAlamat(user.alamat || '');
     setUserEmailForReset(user.email || '');
     setIsEditModalOpen(true);
   };
@@ -97,6 +107,11 @@ export default function AdminUsersPage() {
       await updateDoc(userRef, {
         nama: editNama,
         role: editRole,
+        nip: editNip,
+        pangkat: editPangkat,
+        jabatan: editJabatan,
+        nomorHp: editNomorHp,
+        alamat: editAlamat,
         updatedAt: new Date()
       });
       
@@ -251,40 +266,79 @@ export default function AdminUsersPage() {
               </button>
             </div>
             
-            <form onSubmit={handleUpdateUser} className="p-6 space-y-5">
-              
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Nama Lengkap (dengan gelar)</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Users className="h-4 w-4 text-slate-400" />
+            <form onSubmit={handleUpdateUser} className="flex-1 overflow-y-auto">
+              <div className="p-6 space-y-4">
+                
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Nama Lengkap (dengan gelar)</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Users className="h-4 w-4 text-slate-400" />
+                    </div>
+                    <input type="text" required value={editNama} onChange={(e)=>setEditNama(e.target.value)} className="block w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
                   </div>
-                  <input type="text" required value={editNama} onChange={(e)=>setEditNama(e.target.value)} className="block w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Hak Akses (Role)</label>
+                    <select required value={editRole} onChange={(e)=>setEditRole(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50">
+                      <option value="admin">Administrator (Akses Penuh)</option>
+                      <option value="kapus">Kepala Pusat</option>
+                      <option value="ktu">Kepala Tata Usaha</option>
+                      <option value="ketua">Ketua Tim Kerja</option>
+                      <option value="anggota">Anggota Tim Kerja</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">NIP (Nomor Induk Pegawai)</label>
+                    <input type="text" value={editNip} onChange={(e)=>setEditNip(e.target.value)} className="block w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Jabatan Fungsional/Pelaksana</label>
+                    <input type="text" value={editJabatan} onChange={(e)=>setEditJabatan(e.target.value)} className="block w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Pangkat / Golongan Ruang</label>
+                    <select value={editPangkat} onChange={(e)=>setEditPangkat(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50">
+                      <option value="Belum diisi">-- Pilih Golongan --</option>
+                      <option value="Pengatur (II/c)">Pengatur (II/c)</option>
+                      <option value="Pengatur Tk. I (II/d)">Pengatur Tk. I (II/d)</option>
+                      <option value="Penata Muda (III/a)">Penata Muda (III/a)</option>
+                      <option value="Penata Muda Tk. I (III/b)">Penata Muda Tk. I (III/b)</option>
+                      <option value="Penata (III/c)">Penata (III/c)</option>
+                      <option value="Penata Tk. I (III/d)">Penata Tk. I (III/d)</option>
+                      <option value="Pembina (IV/a)">Pembina (IV/a)</option>
+                      <option value="Pembina Tk. I (IV/b)">Pembina Tk. I (IV/b)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Nomor HP Aktif</label>
+                  <input type="text" value={editNomorHp} onChange={(e)=>setEditNomorHp(e.target.value)} className="block w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Alamat Domisili Lengkap</label>
+                  <textarea rows={2} value={editAlamat} onChange={(e)=>setEditAlamat(e.target.value)} className="block w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"></textarea>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100">
+                  <p className="text-xs text-slate-500 mb-3">
+                    Catatan: Demi alasan keamanan sistem (enkripsi Firebase), Admin tidak dapat melihat atau mengetikkan password baru untuk user secara langsung.
+                  </p>
+                  <button type="button" onClick={() => handleResetPassword(userEmailForReset)} className="flex items-center text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors">
+                    <Lock className="w-4 h-4 mr-2" />
+                    Kirim Email Reset Password ke User Ini
+                  </button>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Hak Akses (Role)</label>
-                <select required value={editRole} onChange={(e)=>setEditRole(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50">
-                  <option value="admin">Administrator (Akses Penuh)</option>
-                  <option value="kapus">Kepala Pusat</option>
-                  <option value="ktu">Kepala Tata Usaha</option>
-                  <option value="ketua">Ketua Tim Kerja</option>
-                  <option value="anggota">Anggota Tim Kerja</option>
-                </select>
-                <p className="text-xs text-slate-500 mt-2">
-                  Catatan: Demi alasan keamanan sistem (enkripsi Firebase), Admin tidak dapat melihat atau mengetikkan password baru untuk user secara langsung.
-                </p>
-              </div>
-              
-              <div className="pt-2 border-t border-slate-100">
-                <button type="button" onClick={() => handleResetPassword(userEmailForReset)} className="flex items-center text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors">
-                  <Lock className="w-4 h-4 mr-2" />
-                  Kirim Email Reset Password ke User Ini
-                </button>
-              </div>
-
-              <div className="mt-8 pt-4 border-t border-slate-200 flex justify-end space-x-3">
+              <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-end space-x-3 shrink-0">
                 <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-colors">
                   Batal
                 </button>
