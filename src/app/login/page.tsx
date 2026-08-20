@@ -119,10 +119,15 @@ export default function LoginPage() {
 
         </div>
         
-        <p className="mt-8 text-center text-xs text-slate-500">
-          Akses terbatas. Pendaftaran akun baru hanya dapat dilakukan oleh Administrator.<br/>
-          &copy; 2026 Pusat Kebijakan Pembangunan.
-        </p>
+        <div className="mt-8 text-center text-xs text-slate-500 space-y-2">
+          <p>
+            Belum memiliki akun? <br className="sm:hidden" />
+            <a href="mailto:admin@pusbangjak.go.id" className="font-bold text-blue-600 hover:text-blue-800 transition-colors">
+              Hubungi Administrator
+            </a> untuk pengajuan pembuatan akun baru.
+          </p>
+          <p>&copy; 2026 Pusat Kebijakan Pembangunan.</p>
+        </div>
       </div>
     </div>
   );
