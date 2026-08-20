@@ -3,20 +3,13 @@ import { cookies } from 'next/headers';
 
 export default async function DashboardPage() {
   const cookieStore = await cookies();
-  const userRole = cookieStore.get('userRole')?.value || 'admin';
-
-  const userNames: Record<string, string> = {
-    admin: 'Sistem Administrator',
-    kapus: 'Dr. Budi Santoso',
-    ktu: 'Siti Aminah, S.E.',
-    ketua: 'Rina Yulianti, M.Si.',
-    anggota: 'Andi Jaya, S.Kom.'
-  };
+  const userNameCookie = cookieStore.get('userName')?.value;
+  const userName = userNameCookie ? decodeURIComponent(userNameCookie) : 'Sistem Administrator';
 
   return (
     <div className="space-y-6">
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-        <h2 className="text-2xl font-bold text-slate-800">Halo, {userNames[userRole]}!</h2>
+        <h2 className="text-2xl font-bold text-slate-800">Halo, {userName}!</h2>
         <p className="text-slate-600 mt-2">
           Anda berada di Sistem Informasi Manajemen Pusat Pengembangan Kebijakan dan Keterpaduan Rencana Pembangunan Desa dan Daerah Tertinggal (Pusbangjak).
         </p>

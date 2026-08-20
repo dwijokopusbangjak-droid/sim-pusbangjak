@@ -27,12 +27,17 @@ export default function LoginPage() {
       // Ambil role dari Firestore
       const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
       let userRole = 'admin'; // Fallback
+      let userName = userCredential.user.displayName || 'Pegawai';
       if (userDoc.exists()) {
         userRole = userDoc.data().role;
+        if (userDoc.data().nama) {
+          userName = userDoc.data().nama;
+        }
       }
 
-      // Simpan role di cookie agar Layout Next.js bisa membaca menu yang diizinkan
+      // Simpan role & nama di cookie agar Layout Next.js bisa membaca menu yang diizinkan
       document.cookie = `userRole=${userRole}; path=/`;
+      document.cookie = `userName=${encodeURIComponent(userName)}; path=/`;
       router.push('/dashboard');
       
     } catch (err: any) {

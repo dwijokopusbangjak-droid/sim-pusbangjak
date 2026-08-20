@@ -32,6 +32,8 @@ export default async function DashboardLayout({
 }) {
   const cookieStore = await cookies();
   const userRole = cookieStore.get('userRole')?.value || 'admin';
+  const userNameCookie = cookieStore.get('userName')?.value;
+  const userName = userNameCookie ? decodeURIComponent(userNameCookie) : 'Sistem Administrator';
 
   // Sesuai dengan spesifikasi peran yang baru:
   const isAdmin = userRole === 'admin';
@@ -186,16 +188,20 @@ export default async function DashboardLayout({
             <div className="flex items-center space-x-3 cursor-pointer hover:bg-slate-50 p-2 rounded-lg transition-colors">
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-semibold text-slate-900">
-                  {userRole === 'admin' && 'Sistem Administrator'}
-                  {userRole === 'kapus' && 'Dr. Budi Santoso'}
-                  {userRole === 'ktu' && 'Siti Aminah, S.E.'}
-                  {userRole === 'ketua' && 'Rina Yulianti, M.Si.'}
-                  {userRole === 'anggota' && 'Andi Jaya, S.Kom.'}
+                  {userName}
                 </p>
-                <p className="text-xs text-slate-500">{roleNameMap[userRole]}</p>
+                <p className="text-xs text-slate-500 font-medium">
+                  {userRole === 'admin' ? 'Administrator' : 
+                   userRole === 'kapus' ? 'Kepala Pusat' :
+                   userRole === 'ktu' ? 'Kepala TU' :
+                   userRole === 'ketua' ? 'Ketua Tim Kerja' :
+                   'Anggota Tim'}
+                </p>
               </div>
-              <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200 text-blue-700 font-bold text-sm">
-                {userRole === 'admin' ? 'A' : userRole === 'kapus' ? 'BS' : userRole === 'ktu' ? 'SA' : userRole === 'ketua' ? 'RY' : 'AJ'}
+              <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200">
+                <span className="text-blue-700 font-bold text-sm">
+                  {userName.charAt(0).toUpperCase()}
+                </span>
               </div>
             </div>
           </div>
