@@ -1,22 +1,28 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, Search, Shield, Trash2, Mail, Lock, X } from 'lucide-react';
+import { Users, UserPlus, Search, Shield, Trash2, Mail, Lock, X, Edit } from 'lucide-react';
 import { app, db } from '@/lib/firebase';
-import { collection, onSnapshot, doc, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { initializeApp } from 'firebase/app';
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Form states
+  // Form states (Create)
   const [nama, setNama] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('anggota');
+
+  // Form states (Edit)
+  const [editingUserId, setEditingUserId] = useState('');
+  const [editNama, setEditNama] = useState('');
+  const [editRole, setEditRole] = useState('');
 
   useEffect(() => {
     const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
@@ -73,6 +79,35 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleEditClick = (user: any) => {
+    setEditingUserId(user.id);
+    setEditNama(user.nama || '');
+    setEditRole(user.role || 'anggota');
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    
+    try {
+      const userRef = doc(db, 'users', editingUserId);
+      await updateDoc(userRef, {
+        nama: editNama,
+        role: editRole,
+        updatedAt: new Date()
+      });
+      
+      setIsEditModalOpen(false);
+      alert('Data pengguna berhasil diperbarui!');
+    } catch (error: any) {
+      console.error("Error updating user: ", error);
+      alert('Gagal memperbarui user: ' + (error.message || 'Terjadi kesalahan'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleDeleteUser = async (userId: string, userName: string) => {
     if (confirm(`Apakah Anda yakin ingin menghapus akses untuk ${userName}? (Perhatian: Ini hanya menghapus data dari Firestore, untuk menghapus Autentikasi sepenuhnya harus dari Firebase Console)`)) {
       try {
@@ -89,8 +124,8 @@ export default function AdminUsersPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Manajemen Pengguna (User)</h2>
-          <p className="text-slate-600 mt-1">Tambah, hapus, dan atur peran (role) dari setiap pegawai yang terdaftar.</p>
+          <h2 className="text-2xl font-bold text-slate-800">Master Data User</h2>
+          <p className="text-slate-600 mt-1">Kelola informasi pegawai, pendaftaran akun baru, dan pengaturan role akses.</p>
         </div>
         <button onClick={() => setIsModalOpen(true)} className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 font-medium transition-colors">
           <UserPlus className="w-5 h-5 mr-2" />
@@ -169,9 +204,14 @@ export default function AdminUsersPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <button onClick={() => handleDeleteUser(user.id, user.nama)} className="text-rose-500 hover:text-rose-700 p-2 rounded-full hover:bg-rose-50 transition-colors" title="Cabut Akses">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex justify-center space-x-2">
+                        <button onClick={() => handleEditClick(user)} className="text-blue-600 hover:text-blue-800 p-2 rounded-full hover:bg-blue-50 transition-colors" title="Edit Pengguna">
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => handleDeleteUser(user.id, user.nama)} className="text-rose-500 hover:text-rose-700 p-2 rounded-full hover:bg-rose-50 transition-colors" title="Cabut Akses">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -180,6 +220,59 @@ export default function AdminUsersPage() {
           </table>
         </div>
       </div>
+
+      {/* Modal Edit User */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0">
+              <h3 className="text-lg font-bold text-slate-800 flex items-center">
+                <Edit className="w-5 h-5 mr-2 text-blue-600" />
+                Edit Data Pengguna
+              </h3>
+              <button onClick={() => setIsEditModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleUpdateUser} className="p-6 space-y-5">
+              
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Nama Lengkap (dengan gelar)</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Users className="h-4 w-4 text-slate-400" />
+                  </div>
+                  <input type="text" required value={editNama} onChange={(e)=>setEditNama(e.target.value)} className="block w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Hak Akses (Role)</label>
+                <select required value={editRole} onChange={(e)=>setEditRole(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50">
+                  <option value="admin">Administrator (Akses Penuh)</option>
+                  <option value="kapus">Kepala Pusat</option>
+                  <option value="ktu">Kepala Tata Usaha</option>
+                  <option value="ketua">Ketua Tim Kerja</option>
+                  <option value="anggota">Anggota Tim Kerja</option>
+                </select>
+                <p className="text-xs text-slate-500 mt-2">
+                  Catatan: Mengubah alamat Email atau Password hanya dapat dilakukan dari Firebase Console demi keamanan.
+                </p>
+              </div>
+
+              <div className="mt-8 pt-4 border-t border-slate-200 flex justify-end space-x-3">
+                <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-colors">
+                  Batal
+                </button>
+                <button disabled={isSubmitting} type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center shadow-sm disabled:opacity-50">
+                  {isSubmitting ? 'Menyimpan...' : 'Simpan Perubahan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal Pendaftaran User Baru */}
       {isModalOpen && (
