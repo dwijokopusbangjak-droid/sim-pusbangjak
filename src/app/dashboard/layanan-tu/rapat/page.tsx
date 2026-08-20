@@ -1,48 +1,62 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar as CalendarIcon, Plus, Search, Video, MapPin, Users, FileText, X, Clock } from 'lucide-react';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
 
 export default function RapatBookingPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [jadwalRapat, setJadwalRapat] = useState([
-    {
-      id: "RPT-0826-001",
-      judul: "Rapat Koordinasi Mingguan Pusat",
-      ruang: "Ruang Rapat Utama (Lantai 3)",
-      waktu: "16 Agustus 2026, 09:00 - 11:30",
-      peserta: 25,
-      isZoom: true,
-      status: "Disetujui KTU",
-      statusColor: "bg-emerald-50 text-emerald-700 border-emerald-200"
-    },
-    {
-      id: "RPT-0826-002",
-      judul: "Pembahasan Draf Naskah Akademik",
-      ruang: "Ruang Rapat Kecil (Lantai 4)",
-      waktu: "18 Agustus 2026, 13:00 - 15:00",
-      peserta: 8,
-      isZoom: false,
-      status: "Menunggu Approval",
-      statusColor: "bg-amber-50 text-amber-700 border-amber-200"
-    }
-  ]);
+  const [jadwalRapat, setJadwalRapat] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const q = query(collection(db, 'jadwalRapat'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setJadwalRapat(data);
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching data:", error);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const isZoomChecked = (document.getElementById('isZoom') as HTMLInputElement).checked;
-    const newRapat = {
-      id: `RPT-0826-00${jadwalRapat.length + 1}`,
-      judul: (document.getElementById('judul') as HTMLInputElement).value,
-      ruang: (document.getElementById('ruang') as HTMLSelectElement).value,
-      waktu: `${(document.getElementById('tanggal') as HTMLInputElement).value}, ${(document.getElementById('jamMulai') as HTMLInputElement).value} - ${(document.getElementById('jamSelesai') as HTMLInputElement).value}`,
-      peserta: parseInt((document.getElementById('peserta') as HTMLInputElement).value || "0", 10),
-      isZoom: isZoomChecked,
-      status: "Menunggu Approval",
-      statusColor: "bg-amber-50 text-amber-700 border-amber-200"
-    };
-    setJadwalRapat([newRapat, ...jadwalRapat]);
-    setIsModalOpen(false);
-    alert('Jadwal Rapat berhasil diajukan dan sedang dicek ketersediaannya oleh sistem.');
+    setIsSubmitting(true);
+    
+    try {
+      const isZoomChecked = (document.getElementById('isZoom') as HTMLInputElement).checked;
+      const tanggal = (document.getElementById('tanggal') as HTMLInputElement).value;
+      const jamMulai = (document.getElementById('jamMulai') as HTMLInputElement).value;
+      const jamSelesai = (document.getElementById('jamSelesai') as HTMLInputElement).value;
+      
+      const newRapat = {
+        judul: (document.getElementById('judul') as HTMLInputElement).value,
+        ruang: (document.getElementById('ruang') as HTMLSelectElement).value,
+        waktu: `${tanggal}, ${jamMulai} - ${jamSelesai}`,
+        peserta: parseInt((document.getElementById('peserta') as HTMLInputElement).value || "0", 10),
+        isZoom: isZoomChecked,
+        status: "Menunggu Approval",
+        statusColor: "bg-amber-50 text-amber-700 border-amber-200",
+        createdAt: Timestamp.now()
+      };
+      
+      await addDoc(collection(db, 'jadwalRapat'), newRapat);
+      setIsModalOpen(false);
+      alert('Jadwal Rapat berhasil diajukan dan disimpan di Firebase.');
+    } catch (error) {
+      console.error("Error adding document: ", error);
+      alert('Gagal mengirim data. Pastikan Firestore rules Anda mengizinkan penulisan.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -87,40 +101,54 @@ export default function RapatBookingPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 bg-white">
-              {jadwalRapat.map((rapat) => (
-                <tr key={rapat.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-slate-900 text-sm">{rapat.judul}</div>
-                    <div className="text-xs text-slate-500 mt-1 font-mono">{rapat.id}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm font-medium text-slate-800 flex items-center">
-                      <Clock className="w-4 h-4 mr-1.5 text-blue-600" />
-                      {rapat.waktu}
-                    </div>
-                    <div className="text-xs text-slate-500 mt-1 flex items-center">
-                      <MapPin className="w-3.5 h-3.5 mr-1" /> {rapat.ruang}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center space-x-3 text-sm text-slate-600">
-                      <div className="flex items-center" title="Jumlah Peserta">
-                        <Users className="w-4 h-4 mr-1" /> {rapat.peserta}
-                      </div>
-                      {rapat.isZoom && (
-                        <div className="flex items-center text-blue-600" title="Menggunakan Zoom">
-                          <Video className="w-4 h-4" />
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-md border ${rapat.statusColor}`}>
-                      {rapat.status}
-                    </span>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-8 text-center text-slate-500">
+                    Memuat data dari Firestore...
                   </td>
                 </tr>
-              ))}
+              ) : jadwalRapat.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-8 text-center text-slate-500">
+                    Belum ada jadwal rapat terdaftar.
+                  </td>
+                </tr>
+              ) : (
+                jadwalRapat.map((rapat) => (
+                  <tr key={rapat.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-slate-900 text-sm">{rapat.judul}</div>
+                      <div className="text-xs text-slate-500 mt-1 font-mono">{rapat.id}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-medium text-slate-800 flex items-center">
+                        <Clock className="w-4 h-4 mr-1.5 text-blue-600" />
+                        {rapat.waktu}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-1 flex items-center">
+                        <MapPin className="w-3.5 h-3.5 mr-1" /> {rapat.ruang}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-3 text-sm text-slate-600">
+                        <div className="flex items-center" title="Jumlah Peserta">
+                          <Users className="w-4 h-4 mr-1" /> {rapat.peserta}
+                        </div>
+                        {rapat.isZoom && (
+                          <div className="flex items-center text-blue-600" title="Menggunakan Zoom">
+                            <Video className="w-4 h-4" />
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-md border ${rapat.statusColor}`}>
+                        {rapat.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -223,8 +251,8 @@ export default function RapatBookingPage() {
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-colors">
                   Batal
                 </button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center shadow-sm">
-                  Ajukan Jadwal
+                <button disabled={isSubmitting} type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center shadow-sm disabled:opacity-50">
+                  {isSubmitting ? 'Memproses...' : 'Ajukan Jadwal'}
                 </button>
               </div>
             </form>

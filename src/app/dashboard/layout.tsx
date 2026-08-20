@@ -20,7 +20,8 @@ import {
   PenTool,
   Send,
   Layers,
-  Settings
+  Settings,
+  Landmark
 } from 'lucide-react';
 import GlobalAlert from '@/components/GlobalAlert';
 
@@ -52,10 +53,10 @@ export default async function DashboardLayout({
       {/* Sidebar */}
       <aside className="w-64 bg-slate-900 text-white flex flex-col hidden md:flex z-20">
         <div className="h-16 flex items-center px-6 border-b border-slate-800 shrink-0">
-          <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center mr-3 shadow-sm">
-            <span className="font-bold text-sm">PB</span>
+          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center mr-3 shadow-md border border-blue-400/30">
+            <Landmark className="w-5 h-5 text-white" />
           </div>
-          <span className="font-bold text-lg tracking-tight">SIM Pusbangjak</span>
+          <span className="font-bold text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-300">SIM Pusbangjak</span>
         </div>
         
         <div className="flex-1 overflow-y-auto py-4 scrollbar-thin scrollbar-thumb-slate-700">

@@ -1,33 +1,55 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FileText, Plus, Search, CheckCircle, Clock, X, Upload } from 'lucide-react';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
 
 export default function SuratKeteranganPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [riwayat, setRiwayat] = useState([
-    {
-      id: "SKet-0826-001",
-      jenis: "Keterangan Aktif Bekerja",
-      tujuan: "Persyaratan KPR Bank",
-      tanggal: "12 Agustus 2026",
-      status: "Selesai (TTE Kapus)",
-      statusColor: "bg-emerald-50 text-emerald-700 border-emerald-200"
-    }
-  ]);
+  const [riwayat, setRiwayat] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const q = query(collection(db, 'suratKeterangan'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setRiwayat(data);
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching data:", error);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newSKet = {
-      id: `SKet-0826-00${riwayat.length + 1}`,
-      jenis: (document.getElementById('jenis') as HTMLSelectElement).value,
-      tujuan: (document.getElementById('tujuan') as HTMLInputElement).value,
-      tanggal: "Hari Ini",
-      status: "Menunggu Verifikasi KTU",
-      statusColor: "bg-amber-50 text-amber-700 border-amber-200"
-    };
-    setRiwayat([newSKet, ...riwayat]);
-    setIsModalOpen(false);
-    alert('Permohonan Surat Keterangan berhasil diajukan.');
+    setIsSubmitting(true);
+    
+    try {
+      const newSKet = {
+        jenis: (document.getElementById('jenis') as HTMLSelectElement).value,
+        tujuan: (document.getElementById('tujuan') as HTMLInputElement).value,
+        tanggal: new Date().toLocaleDateString('id-ID'),
+        status: "Menunggu Verifikasi KTU",
+        statusColor: "bg-amber-50 text-amber-700 border-amber-200",
+        createdAt: Timestamp.now()
+      };
+      
+      await addDoc(collection(db, 'suratKeterangan'), newSKet);
+      setIsModalOpen(false);
+      alert('Permohonan Surat Keterangan berhasil diajukan ke Firebase!');
+    } catch (error) {
+      console.error("Error adding document: ", error);
+      alert('Gagal mengirim data. Pastikan Firestore rules Anda mengizinkan penulisan.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -62,29 +84,43 @@ export default function SuratKeteranganPage() {
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-white">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">ID & Jenis Keperluan</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Jenis Keperluan</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Tujuan Pembuatan</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status Workflow</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 bg-white">
-              {riwayat.map((sket) => (
-                <tr key={sket.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-slate-900 text-sm">{sket.jenis}</div>
-                    <div className="text-xs text-slate-500 mt-1 font-mono">{sket.id} • {sket.tanggal}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-slate-800">{sket.tujuan}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-md border ${sket.statusColor}`}>
-                      {sket.status.includes('Selesai') ? <CheckCircle className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
-                      {sket.status}
-                    </span>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={3} className="px-6 py-8 text-center text-slate-500">
+                    Memuat data dari Firestore...
                   </td>
                 </tr>
-              ))}
+              ) : riwayat.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-6 py-8 text-center text-slate-500">
+                    Belum ada riwayat pengajuan surat keterangan.
+                  </td>
+                </tr>
+              ) : (
+                riwayat.map((sket) => (
+                  <tr key={sket.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-slate-900 text-sm">{sket.jenis}</div>
+                      <div className="text-xs text-slate-500 mt-1 font-mono">{sket.id} • {sket.tanggal}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-slate-800">{sket.tujuan}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-md border ${sket.statusColor}`}>
+                        {sket.status?.includes('Selesai') ? <CheckCircle className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
+                        {sket.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -150,8 +186,8 @@ export default function SuratKeteranganPage() {
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-colors">
                   Batal
                 </button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center shadow-sm">
-                  Ajukan Permohonan
+                <button disabled={isSubmitting} type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center shadow-sm disabled:opacity-50">
+                  {isSubmitting ? 'Mengirim...' : 'Ajukan Permohonan'}
                 </button>
               </div>
             </form>

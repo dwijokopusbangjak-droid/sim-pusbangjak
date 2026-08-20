@@ -1,41 +1,61 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Send, Plus, Search, FileText, CheckCircle, Clock, X, AlertCircle } from 'lucide-react';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
 
 export default function SuratTugasPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [riwayat, setRiwayat] = useState([
-    {
-      id: "ST-0826-001",
-      tujuan: "Rapat Koordinasi dengan Kemendes PDTT",
-      lokasi: "Luar Kota (Jakarta)",
-      tanggal: "15 - 17 Agustus 2026",
-      status: "Selesai (TTE Kapus)",
-      statusColor: "bg-emerald-50 text-emerald-700 border-emerald-200"
-    },
-    {
-      id: "ST-0826-002",
-      tujuan: "Survei Lapangan Indeks Desa Membangun",
-      lokasi: "Luar Kota (Bandung)",
-      tanggal: "20 - 24 Agustus 2026",
-      status: "Menunggu Review KTU",
-      statusColor: "bg-amber-50 text-amber-700 border-amber-200"
-    }
-  ]);
+  const [riwayat, setRiwayat] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const q = query(collection(db, 'suratTugas'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setRiwayat(data);
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching data:", error);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newST = {
-      id: `ST-0826-00${riwayat.length + 1}`,
-      tujuan: (document.getElementById('maksud') as HTMLInputElement).value,
-      lokasi: (document.getElementById('lokasi') as HTMLSelectElement).value,
-      tanggal: "Jadwal Baru",
-      status: "Menunggu Review KTU",
-      statusColor: "bg-amber-50 text-amber-700 border-amber-200"
-    };
-    setRiwayat([newST, ...riwayat]);
-    setIsModalOpen(false);
-    alert('Draf Surat Tugas berhasil diajukan dan masuk ke antrean verifikasi KTU.');
+    setIsSubmitting(true);
+    
+    try {
+      const isZoomChecked = (document.getElementById('isZoom') as HTMLInputElement)?.checked || false;
+      const tglBerangkat = (document.getElementById('tglBerangkat') as HTMLInputElement).value;
+      const tglPulang = (document.getElementById('tglPulang') as HTMLInputElement).value;
+      
+      const newST = {
+        dasar: (document.getElementById('dasar') as HTMLInputElement).value,
+        tujuan: (document.getElementById('maksud') as HTMLInputElement).value,
+        lokasi: (document.getElementById('lokasi') as HTMLSelectElement).value,
+        sumberBiaya: (document.getElementById('biaya') as HTMLSelectElement).value,
+        tanggal: `${tglBerangkat} s/d ${tglPulang}`,
+        status: "Menunggu Review KTU",
+        statusColor: "bg-amber-50 text-amber-700 border-amber-200",
+        createdAt: Timestamp.now()
+      };
+      
+      await addDoc(collection(db, 'suratTugas'), newST);
+      setIsModalOpen(false);
+      alert('Surat Tugas berhasil diajukan ke Firebase Firestore!');
+    } catch (error) {
+      console.error("Error adding document: ", error);
+      alert('Gagal mengirim data. Pastikan Firestore rules Anda dalam Test Mode.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -70,30 +90,44 @@ export default function SuratTugasPage() {
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-white">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">ID & Tujuan Penugasan</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Tujuan Penugasan</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Lokasi & Jadwal</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status Workflow</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 bg-white">
-              {riwayat.map((st) => (
-                <tr key={st.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-slate-900 text-sm">{st.tujuan}</div>
-                    <div className="text-xs text-slate-500 mt-1 font-mono">{st.id}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-slate-800">{st.lokasi}</div>
-                    <div className="text-xs text-slate-500 mt-1">{st.tanggal}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-md border ${st.statusColor}`}>
-                      {st.status.includes('Selesai') ? <CheckCircle className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
-                      {st.status}
-                    </span>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={3} className="px-6 py-8 text-center text-slate-500">
+                    Memuat data dari Firestore...
                   </td>
                 </tr>
-              ))}
+              ) : riwayat.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-6 py-8 text-center text-slate-500">
+                    Belum ada pengajuan surat tugas.
+                  </td>
+                </tr>
+              ) : (
+                riwayat.map((st) => (
+                  <tr key={st.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-slate-900 text-sm">{st.tujuan}</div>
+                      <div className="text-xs text-slate-500 mt-1 font-mono">{st.id}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-slate-800">{st.lokasi}</div>
+                      <div className="text-xs text-slate-500 mt-1">{st.tanggal}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-md border ${st.statusColor}`}>
+                        {st.status?.includes('Selesai') ? <CheckCircle className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
+                        {st.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -120,7 +154,7 @@ export default function SuratTugasPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="md:col-span-2">
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Dasar Pelaksanaan (Referensi)</label>
-                    <input type="text" required className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="Contoh: Surat Undangan No. 123/Bappenas/2026 atau Nota Dinas No. 45" />
+                    <input id="dasar" type="text" required className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="Contoh: Surat Undangan No. 123/Bappenas/2026 atau Nota Dinas No. 45" />
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Maksud / Tujuan Penugasan</label>
@@ -137,7 +171,7 @@ export default function SuratTugasPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Sumber Pembiayaan</label>
-                    <select required className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                    <select id="biaya" required className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm">
                       <option value="DIPA Pusbangjak">DIPA Pusbangjak</option>
                       <option value="Eksternal (Pengundang)">Eksternal (Pengundang)</option>
                       <option value="Non-Anggaran">Non-Anggaran</option>
@@ -145,11 +179,11 @@ export default function SuratTugasPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Tanggal Berangkat</label>
-                    <input type="date" required className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                    <input id="tglBerangkat" type="date" required className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Tanggal Pulang</label>
-                    <input type="date" required className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                    <input id="tglPulang" type="date" required className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Angkutan / Transportasi</label>
@@ -188,7 +222,7 @@ export default function SuratTugasPage() {
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start">
                   <AlertCircle className="w-5 h-5 text-amber-500 mr-3 shrink-0 mt-0.5" />
                   <p className="text-xs text-amber-800 leading-relaxed">
-                    Setelah draf diajukan, permohonan ini akan masuk ke dalam antrean **Verifikasi KTU**. Mohon pastikan seluruh data telah valid sebelum Kepala Pusat melakukan Tanda Tangan Elektronik (TTE).
+                    Setelah draf diajukan, permohonan ini akan dikirim ke Firestore secara real-time untuk direview KTU.
                   </p>
                 </div>
               </div>
@@ -197,9 +231,9 @@ export default function SuratTugasPage() {
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-colors">
                   Batal
                 </button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center shadow-sm">
+                <button disabled={isSubmitting} type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center shadow-sm disabled:opacity-50">
                   <Send className="w-4 h-4 mr-2" />
-                  Ajukan Surat Tugas
+                  {isSubmitting ? 'Menyimpan...' : 'Ajukan Surat Tugas'}
                 </button>
               </div>
             </form>
