@@ -6,6 +6,7 @@ import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, deleteDoc, d
 
 export default function CapaianIKUPage() {
   const [dataIKU, setDataIKU] = useState<any[]>([]);
+  const [teamsData, setTeamsData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [userRole, setUserRole] = useState('pegawai');
   
@@ -20,8 +21,8 @@ export default function CapaianIKUPage() {
     if (match) setUserRole(match[2]);
 
     // Fetch IKUs
-    const q = query(collection(db, 'ikus'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const qIku = query(collection(db, 'ikus'), orderBy('createdAt', 'desc'));
+    const unsubscribeIku = onSnapshot(qIku, (snapshot) => {
       const ikus = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -33,7 +34,20 @@ export default function CapaianIKUPage() {
       setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    // Fetch Teams for PIC selection
+    const qTeams = query(collection(db, 'teams'), orderBy('createdAt', 'desc'));
+    const unsubscribeTeams = onSnapshot(qTeams, (snapshot) => {
+      const teams = snapshot.docs.map(doc => ({
+        id: doc.id,
+        nama: doc.data().nama
+      }));
+      setTeamsData(teams);
+    });
+
+    return () => {
+      unsubscribeIku();
+      unsubscribeTeams();
+    };
   }, []);
 
   const isAdminOrKapus = userRole === 'admin' || userRole === 'kapus';
@@ -45,15 +59,23 @@ export default function CapaianIKUPage() {
     }
     
     const headers = ["Kode IKU", "Indikator", "Target", "Realisasi", "Progress (%)", "Status", "PIC"];
-    const rows = dataIKU.map(iku => [
-      iku.kode || '',
-      `"${iku.indikator || ''}"`,
-      `"${iku.target || ''}"`,
-      `"${iku.realisasi || ''}"`,
-      iku.progressValue || 0,
-      iku.status || '',
-      `"${iku.pic || ''}"`
-    ]);
+    const rows = dataIKU.map(iku => {
+      // Map team IDs to team names for CSV
+      const picNames = (iku.pic_teams || []).map((teamId: string) => {
+        const team = teamsData.find(t => t.id === teamId);
+        return team ? team.nama : teamId;
+      }).join(", ");
+
+      return [
+        iku.kode || '',
+        `"${iku.indikator || ''}"`,
+        `"${iku.target || ''}"`,
+        `"${iku.realisasi || ''}"`,
+        iku.progressValue || 0,
+        iku.status || '',
+        `"${picNames}"`
+      ];
+    });
     
     const csvContent = "data:text/csv;charset=utf-8," 
       + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
@@ -73,17 +95,32 @@ export default function CapaianIKUPage() {
       kode: 'IKU-0X',
       indikator: '',
       target: '',
-      realisasi: '',
+      realisasi: 'Belum dievaluasi',
       progressValue: 0,
       status: 'On Track',
-      pic: ''
+      pic_teams: [] // Array of team IDs
     });
     setIsModalOpen(true);
   };
 
   const handleEdit = (iku: any) => {
-    setEditingIku(iku);
+    setEditingIku({
+      ...iku,
+      isNew: false,
+      pic_teams: iku.pic_teams || []
+    });
     setIsModalOpen(true);
+  };
+
+  const toggleTeam = (teamId: string) => {
+    setEditingIku((prev: any) => {
+      const current = prev.pic_teams || [];
+      if (current.includes(teamId)) {
+        return { ...prev, pic_teams: current.filter((id: string) => id !== teamId) };
+      } else {
+        return { ...prev, pic_teams: [...current, teamId] };
+      }
+    });
   };
 
   const handleDelete = async (id: string) => {
@@ -107,24 +144,28 @@ export default function CapaianIKUPage() {
         kode: editingIku.kode,
         indikator: editingIku.indikator,
         target: editingIku.target,
-        realisasi: editingIku.realisasi,
-        progressValue: Number(editingIku.progressValue),
         status: editingIku.status,
-        pic: editingIku.pic
+        pic_teams: editingIku.pic_teams
       };
 
       if (editingIku.isNew) {
+        // Saat buat baru, realisasi dikosongkan secara logis
         await addDoc(collection(db, 'ikus'), {
           ...payload,
+          realisasi: 'Belum dievaluasi',
+          progressValue: 0,
           createdAt: serverTimestamp()
         });
-        alert('IKU baru berhasil ditambahkan.');
+        alert('Penetapan IKU baru berhasil ditambahkan.');
       } else {
+        // Saat edit, simpan realisasi yang diubah
         await updateDoc(doc(db, 'ikus', editingIku.id), {
           ...payload,
+          realisasi: editingIku.realisasi,
+          progressValue: Number(editingIku.progressValue),
           updatedAt: serverTimestamp()
         });
-        alert('Perubahan IKU berhasil disimpan.');
+        alert('Perubahan capaian IKU berhasil disimpan.');
       }
       setIsModalOpen(false);
     } catch (error: any) {
@@ -223,7 +264,23 @@ export default function CapaianIKUPage() {
                       </span>
                     </div>
                     <h4 className="text-base font-semibold text-slate-900 leading-snug">{iku.indikator}</h4>
-                    <p className="text-sm text-slate-500 mt-2">Cascading / PIC: <span className="font-medium text-slate-700">{iku.pic}</span></p>
+                    <div className="mt-3">
+                      <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">Penanggung Jawab (Tim Cascading):</p>
+                      <div className="flex flex-wrap gap-2">
+                        {(!iku.pic_teams || iku.pic_teams.length === 0) ? (
+                          <span className="text-sm text-slate-400 italic">Belum ada tim yang ditugaskan</span>
+                        ) : (
+                          iku.pic_teams.map((teamId: string) => {
+                            const team = teamsData.find(t => t.id === teamId);
+                            return (
+                              <span key={teamId} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                {team ? team.nama : 'Tim tidak ditemukan'}
+                              </span>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
                   </div>
                   
                   <div className="w-full md:w-64 shrink-0 bg-slate-50 p-4 rounded-lg border border-slate-100">
@@ -285,26 +342,65 @@ export default function CapaianIKUPage() {
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Deskripsi Indikator Kinerja</label>
                   <textarea required rows={3} value={editingIku.indikator} onChange={e => setEditingIku({...editingIku, indikator: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" placeholder="Masukkan deskripsi indikator..."></textarea>
                 </div>
-
+                
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Penanggung Jawab (PIC / Tim Cascading)</label>
-                  <input type="text" required value={editingIku.pic} onChange={e => setEditingIku({...editingIku, pic: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Cth: Tim Kebijakan Pembangunan Desa" />
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Target</label>
+                  <input type="text" required value={editingIku.target} onChange={e => setEditingIku({...editingIku, target: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Cth: 85%" />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">Nilai Target</label>
-                    <input type="text" required value={editingIku.target} onChange={e => setEditingIku({...editingIku, target: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Cth: 85%" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">Nilai Realisasi</label>
-                    <input type="text" required value={editingIku.realisasi} onChange={e => setEditingIku({...editingIku, realisasi: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Cth: 65%" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">Persentase (%)</label>
-                    <input type="number" required min="0" max="100" step="0.1" value={editingIku.progressValue} onChange={e => setEditingIku({...editingIku, progressValue: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Cth: 76.4" />
+                <div className="border-t border-slate-200 pt-4 mt-4">
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Tim Kerja Pengampu (Cascading)</label>
+                  <p className="text-xs text-slate-500 mb-3">Pilih satu atau lebih tim kerja yang bertanggung jawab untuk mengeksekusi IKU ini.</p>
+                  
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-40 overflow-y-auto">
+                    {teamsData.length === 0 ? (
+                      <p className="text-sm text-slate-500 text-center py-2">Belum ada tim kerja yang terdaftar di sistem.</p>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {teamsData.map((team) => {
+                          const isSelected = editingIku.pic_teams?.includes(team.id);
+                          return (
+                            <label key={team.id} className={`flex items-start p-2 rounded-md border cursor-pointer transition-colors ${isSelected ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200 hover:bg-slate-100'}`}>
+                              <div className="flex items-center h-5">
+                                <input 
+                                  type="checkbox" 
+                                  className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" 
+                                  checked={isSelected}
+                                  onChange={() => toggleTeam(team.id)}
+                                />
+                              </div>
+                              <div className="ml-2 text-sm">
+                                <span className={`font-medium ${isSelected ? 'text-indigo-900' : 'text-slate-700'}`}>{team.nama}</span>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
+
+                {!editingIku.isNew && (
+                  <div className="border-t border-slate-200 pt-4 mt-4">
+                    <p className="text-sm font-semibold text-slate-800 mb-3">Evaluasi & Capaian (Monitoring Tim)</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-emerald-50/50 border border-emerald-100 rounded-lg">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Nilai Realisasi</label>
+                        <input type="text" required value={editingIku.realisasi} onChange={e => setEditingIku({...editingIku, realisasi: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Cth: 65%" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Persentase Capaian (%)</label>
+                        <input type="number" required min="0" max="100" step="0.1" value={editingIku.progressValue} onChange={e => setEditingIku({...editingIku, progressValue: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Cth: 76.4" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {editingIku.isNew && (
+                  <div className="p-3 bg-blue-50 text-blue-800 text-sm rounded-lg flex">
+                    <TrendingUp className="w-5 h-5 mr-2 shrink-0 text-blue-600" />
+                    <p>Karena ini adalah IKU Baru, nilai Realisasi dan Capaian Persentase akan diisi nanti pada saat proses evaluasi (Monitoring) oleh tim kerja yang bersangkutan.</p>
+                  </div>
+                )}
               </div>
 
               <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-end space-x-3 shrink-0">
