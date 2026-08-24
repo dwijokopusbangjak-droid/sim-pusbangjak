@@ -40,15 +40,15 @@ export default async function DashboardLayout({
   const isAdmin = userRole === 'admin';
   const isKapus = userRole === 'kapus' || isAdmin;
   const isKtu = userRole === 'ktu' || isAdmin;
-  const isKetua = userRole === 'ketua' || isAdmin;
-  const isAnggota = userRole === 'anggota' || isKetua || isAdmin;
+  const isPegawai = userRole === 'pegawai' || userRole === 'anggota' || userRole === 'ketua' || isAdmin;
 
   const roleNameMap: Record<string, string> = {
     admin: 'Administrator',
     kapus: 'Kepala Pusat',
     ktu: 'Kepala Tata Usaha',
-    ketua: 'Ketua Tim Kerja',
-    anggota: 'Anggota Tim Kerja'
+    pegawai: 'Pegawai Fungsional/Pelaksana',
+    ketua: 'Pegawai Fungsional/Pelaksana',
+    anggota: 'Pegawai Fungsional/Pelaksana'
   };
 
   return (
@@ -75,7 +75,7 @@ export default async function DashboardLayout({
                 Kinerja & Perencanaan
               </p>
             </div>
-            {(isKapus || isKetua) && (
+            {(isKapus || isPegawai) && (
               <Link href="/dashboard/kinerja/iku" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
                 <Target className="mr-3 h-5 w-5 text-slate-400" />
                 Capaian IKU
@@ -85,7 +85,7 @@ export default async function DashboardLayout({
               <Layers className="mr-3 h-5 w-5 text-slate-400" />
               Matriks Peran Hasil
             </Link>
-            {(isKetua || isKapus || isKtu) && (
+            {(isPegawai || isKapus || isKtu) && (
               <Link href="/dashboard/kinerja/laporan" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
                 <BarChart2 className="mr-3 h-5 w-5 text-slate-400" />
                 Laporan & Mitigasi Risiko
@@ -98,7 +98,7 @@ export default async function DashboardLayout({
                 Manajemen Pekerjaan
               </p>
             </div>
-            {isKetua && (
+            {isPegawai && (
               <Link href="/dashboard/pekerjaan/tim" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
                 <UsersRound className="mr-3 h-5 w-5 text-slate-400" />
                 Workspace Tim

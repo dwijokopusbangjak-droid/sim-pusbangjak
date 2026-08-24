@@ -17,7 +17,7 @@ export default function AdminUsersPage() {
   const [nama, setNama] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('anggota');
+  const [role, setRole] = useState('pegawai');
 
   // Form states (Edit)
   const [editingUserId, setEditingUserId] = useState('');
@@ -88,7 +88,7 @@ export default function AdminUsersPage() {
   const handleEditClick = (user: any) => {
     setEditingUserId(user.id);
     setEditNama(user.nama || '');
-    setEditRole(user.role || 'anggota');
+    setEditRole(user.role === 'ketua' || user.role === 'anggota' ? 'pegawai' : user.role || 'pegawai');
     setEditNip(user.nip || '');
     setEditPangkat(user.pangkat || 'Belum diisi');
     setEditJabatan(user.jabatan || '');
@@ -227,11 +227,10 @@ export default function AdminUsersPage() {
                         user.role === 'admin' ? 'bg-rose-50 text-rose-700 border-rose-200' :
                         user.role === 'kapus' ? 'bg-purple-50 text-purple-700 border-purple-200' :
                         user.role === 'ktu' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                        user.role === 'ketua' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                         'bg-slate-100 text-slate-700 border-slate-200'
                       }`}>
                         <Shield className="w-3 h-3 mr-1" />
-                        {user.role.toUpperCase()}
+                        {user.role === 'pegawai' || user.role === 'anggota' || user.role === 'ketua' ? 'PEGAWAI' : user.role.toUpperCase()}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -286,8 +285,7 @@ export default function AdminUsersPage() {
                       <option value="admin">Administrator (Akses Penuh)</option>
                       <option value="kapus">Kepala Pusat</option>
                       <option value="ktu">Kepala Tata Usaha</option>
-                      <option value="ketua">Ketua Tim Kerja</option>
-                      <option value="anggota">Anggota Tim Kerja</option>
+                      <option value="pegawai">Pegawai Fungsional/Pelaksana</option>
                     </select>
                   </div>
                   <div>
@@ -403,8 +401,7 @@ export default function AdminUsersPage() {
                   <option value="admin">Administrator (Akses Penuh)</option>
                   <option value="kapus">Kepala Pusat</option>
                   <option value="ktu">Kepala Tata Usaha</option>
-                  <option value="ketua">Ketua Tim Kerja</option>
-                  <option value="anggota">Anggota Tim Kerja</option>
+                  <option value="pegawai">Pegawai Fungsional/Pelaksana</option>
                 </select>
               </div>
 

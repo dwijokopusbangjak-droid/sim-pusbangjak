@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { Briefcase, Search, Edit, Trash2, Plus, X, Users, Loader2 } from 'lucide-react';
+import { Briefcase, Search, Edit, Trash2, Plus, X, Users, Loader2, CheckSquare } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 
@@ -57,7 +57,11 @@ export default function ManajemenTimKerjaPage() {
   };
 
   const handleEdit = (team: any) => {
-    setEditingTeam(team);
+    setEditingTeam({
+      ...team,
+      ketua_uid: team.ketua_uid || '',
+      anggota_uids: team.anggota_uids || []
+    });
     setIsModalOpen(true);
   };
 
@@ -66,25 +70,42 @@ export default function ManajemenTimKerjaPage() {
       isNew: true, // flag marker
       nama: '',
       deskripsi: '',
-      ketua: '',
-      jumlahAnggota: 0,
+      ketua_uid: '',
+      anggota_uids: [],
       status: 'Aktif'
     });
     setIsModalOpen(true);
+  };
+
+  const toggleAnggota = (uid: string) => {
+    setEditingTeam((prev: any) => {
+      const current = prev.anggota_uids || [];
+      if (current.includes(uid)) {
+        return { ...prev, anggota_uids: current.filter((id: string) => id !== uid) };
+      } else {
+        return { ...prev, anggota_uids: [...current, uid] };
+      }
+    });
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     
+    // Cari nama ketua berdasarkan ketua_uid untuk disimpan sebagai cache/denormalisasi
+    const ketuaObj = usersFromDb.find(u => u.id === editingTeam.ketua_uid);
+    const ketuaNama = ketuaObj ? ketuaObj.nama : '';
+
     try {
       if (editingTeam.isNew) {
         // Add new team to Firestore
         await addDoc(collection(db, 'teams'), {
           nama: editingTeam.nama,
           deskripsi: editingTeam.deskripsi,
-          ketua: editingTeam.ketua,
-          jumlahAnggota: Number(editingTeam.jumlahAnggota),
+          ketua_uid: editingTeam.ketua_uid,
+          ketua: ketuaNama, // Simpan namanya juga agar tabel cepat di-load tanpa join
+          anggota_uids: editingTeam.anggota_uids,
+          jumlahAnggota: editingTeam.anggota_uids.length,
           status: editingTeam.status,
           createdAt: serverTimestamp()
         });
@@ -95,8 +116,10 @@ export default function ManajemenTimKerjaPage() {
         await updateDoc(teamRef, {
           nama: editingTeam.nama,
           deskripsi: editingTeam.deskripsi,
-          ketua: editingTeam.ketua,
-          jumlahAnggota: Number(editingTeam.jumlahAnggota),
+          ketua_uid: editingTeam.ketua_uid,
+          ketua: ketuaNama,
+          anggota_uids: editingTeam.anggota_uids,
+          jumlahAnggota: editingTeam.anggota_uids.length,
           status: editingTeam.status,
           updatedAt: serverTimestamp()
         });
@@ -116,7 +139,7 @@ export default function ManajemenTimKerjaPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Manajemen Tim Kerja</h2>
-          <p className="text-slate-600 mt-1">Pembentukan, restrukturisasi, dan penugasan ketua tim kerja secara real-time.</p>
+          <p className="text-slate-600 mt-1">Pembentukan, restrukturisasi, dan penugasan ketua serta anggota tim kerja.</p>
         </div>
         <button onClick={handleAdd} className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 font-medium transition-colors">
           <Plus className="w-5 h-5 mr-2" />
@@ -219,7 +242,7 @@ export default function ManajemenTimKerjaPage() {
       {/* Modal Form Tim Kerja */}
       {isModalOpen && editingTeam && (
         <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0">
               <h3 className="text-lg font-bold text-slate-800">
                 {editingTeam.isNew ? 'Tambah Tim Kerja Baru' : 'Edit Tim Kerja'}
@@ -231,70 +254,105 @@ export default function ManajemenTimKerjaPage() {
             
             <form onSubmit={handleSave} className="flex-1 overflow-y-auto">
               <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Nama Tim Kerja</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={editingTeam.nama}
-                    onChange={(e) => setEditingTeam({...editingTeam, nama: e.target.value})}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
-                    placeholder="Contoh: Tim Inovasi Pembangunan"
-                  />
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Nama Tim Kerja</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={editingTeam.nama}
+                      onChange={(e) => setEditingTeam({...editingTeam, nama: e.target.value})}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+                      placeholder="Contoh: Tim Inovasi Pembangunan"
+                    />
+                  </div>
+                  
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Deskripsi & Tugas Pokok</label>
+                    <textarea 
+                      required
+                      rows={2}
+                      value={editingTeam.deskripsi}
+                      onChange={(e) => setEditingTeam({...editingTeam, deskripsi: e.target.value})}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" 
+                      placeholder="Penjelasan singkat mengenai ruang lingkup tim..."
+                    ></textarea>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Pilih Ketua Tim
+                    </label>
+                    <select 
+                      required
+                      value={editingTeam.ketua_uid}
+                      onChange={(e) => setEditingTeam({...editingTeam, ketua_uid: e.target.value})}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                      <option value="">-- Pilih Ketua --</option>
+                      {usersFromDb.map((user) => (
+                        <option key={user.id} value={user.id}>
+                          {user.nama} ({user.role})
+                        </option>
+                      ))}
+                      {usersFromDb.length === 0 && (
+                        <option disabled>Memuat data dari database...</option>
+                      )}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Status Tim</label>
+                    <select 
+                      value={editingTeam.status}
+                      onChange={(e) => setEditingTeam({...editingTeam, status: e.target.value})}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                      <option value="Aktif">Aktif</option>
+                      <option value="Non-Aktif">Non-Aktif (Dibekukan)</option>
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Deskripsi & Tugas Pokok</label>
-                  <textarea 
-                    required
-                    rows={3}
-                    value={editingTeam.deskripsi}
-                    onChange={(e) => setEditingTeam({...editingTeam, deskripsi: e.target.value})}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" 
-                    placeholder="Penjelasan singkat mengenai ruang lingkup tim..."
-                  ></textarea>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Pilih Ketua Tim <span className="text-xs text-blue-600 font-normal ml-1">(Database Real-time)</span>
-                  </label>
-                  <select 
-                    required
-                    value={editingTeam.ketua}
-                    onChange={(e) => setEditingTeam({...editingTeam, ketua: e.target.value})}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  >
-                    <option value="">-- Pilih Pegawai --</option>
-                    {usersFromDb.map((user) => (
-                      <option key={user.id} value={user.nama}>
-                        {user.nama} ({user.role})
-                      </option>
-                    ))}
-                    {usersFromDb.length === 0 && (
-                      <option disabled>Memuat data dari database...</option>
+
+                <div className="border-t border-slate-200 pt-4 mt-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-sm font-medium text-slate-700">
+                      Anggota Tim Kerja ({editingTeam.anggota_uids?.length || 0} Terpilih)
+                    </label>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-3">Centang kotak di bawah ini untuk menugaskan pegawai ke dalam tim ini.</p>
+                  
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-48 overflow-y-auto">
+                    {usersFromDb.length === 0 ? (
+                      <p className="text-sm text-slate-500 text-center py-4">Memuat data pegawai...</p>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {usersFromDb.map((user) => {
+                          // Jangan tampilkan ketua di daftar anggota agar tidak ganda
+                          if (user.id === editingTeam.ketua_uid) return null;
+                          
+                          const isSelected = editingTeam.anggota_uids?.includes(user.id);
+                          return (
+                            <label key={user.id} className={`flex items-start p-2 rounded-md border cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-200 hover:bg-slate-100'}`}>
+                              <div className="flex items-center h-5">
+                                <input 
+                                  type="checkbox" 
+                                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" 
+                                  checked={isSelected}
+                                  onChange={() => toggleAnggota(user.id)}
+                                />
+                              </div>
+                              <div className="ml-2 text-sm">
+                                <span className={`font-medium ${isSelected ? 'text-blue-900' : 'text-slate-700'}`}>{user.nama}</span>
+                                <p className="text-xs text-slate-500">{user.jabatan || user.role}</p>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
                     )}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Estimasi Jumlah Anggota</label>
-                  <input 
-                    type="number" 
-                    min="0"
-                    required
-                    value={editingTeam.jumlahAnggota}
-                    onChange={(e) => setEditingTeam({...editingTeam, jumlahAnggota: e.target.value})}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Status Tim</label>
-                  <select 
-                    value={editingTeam.status}
-                    onChange={(e) => setEditingTeam({...editingTeam, status: e.target.value})}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  >
-                    <option value="Aktif">Aktif</option>
-                    <option value="Non-Aktif">Non-Aktif (Dibekukan)</option>
-                  </select>
+                  </div>
                 </div>
               </div>
 
@@ -311,7 +369,7 @@ export default function ManajemenTimKerjaPage() {
                   type="submit"
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center disabled:opacity-50"
                 >
-                  {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                  {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckSquare className="w-4 h-4 mr-2" />}
                   Simpan Tim
                 </button>
               </div>
