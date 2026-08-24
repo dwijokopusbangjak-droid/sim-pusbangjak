@@ -1,37 +1,143 @@
 'use client';
-import React from 'react';
-import { Target, TrendingUp, Filter, Download, Plus } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Target, TrendingUp, Filter, Download, Plus, Edit, Trash2, X, Save } from 'lucide-react';
+import { db } from '@/lib/firebase';
+import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 
 export default function CapaianIKUPage() {
-  const dataIKU = [
-    {
-      id: "IKU-01",
-      indikator: "Persentase kebijakan dan keterpaduan rencana pembangunan desa yang diimplementasikan",
-      target: "85%",
-      realisasi: "65%",
-      progressValue: 76.4, // 65/85 * 100
-      status: "On Track",
-      pic: "Tim Kebijakan Pembangunan Desa"
-    },
-    {
-      id: "IKU-02",
-      indikator: "Jumlah rekomendasi kebijakan daerah tertinggal yang ditindaklanjuti oleh Kementerian/Lembaga",
-      target: "12 Rekomendasi",
-      realisasi: "14 Rekomendasi",
-      progressValue: 100,
-      status: "Tercapai",
-      pic: "Tim Pengembangan Daerah Tertinggal"
-    },
-    {
-      id: "IKU-03",
-      indikator: "Indeks kepuasan layanan internal ketatausahaan dan fasilitasi pimpinan",
-      target: "Nilai 3.50 (Skala 4)",
-      realisasi: "Nilai 3.10",
-      progressValue: 88.5,
-      status: "Needs Attention",
-      pic: "Kepala Bagian Tata Usaha"
+  const [dataIKU, setDataIKU] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [userRole, setUserRole] = useState('pegawai');
+  
+  // Modal states
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingIku, setEditingIku] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    // Check role from cookie for UI logic
+    const match = document.cookie.match(new RegExp('(^| )userRole=([^;]+)'));
+    if (match) setUserRole(match[2]);
+
+    // Fetch IKUs
+    const q = query(collection(db, 'ikus'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const ikus = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setDataIKU(ikus);
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching IKU:", error);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const isAdminOrKapus = userRole === 'admin' || userRole === 'kapus';
+
+  const handleExportCSV = () => {
+    if (dataIKU.length === 0) {
+      alert("Tidak ada data untuk diekspor.");
+      return;
     }
-  ];
+    
+    const headers = ["Kode IKU", "Indikator", "Target", "Realisasi", "Progress (%)", "Status", "PIC"];
+    const rows = dataIKU.map(iku => [
+      iku.kode || '',
+      `"${iku.indikator || ''}"`,
+      `"${iku.target || ''}"`,
+      `"${iku.realisasi || ''}"`,
+      iku.progressValue || 0,
+      iku.status || '',
+      `"${iku.pic || ''}"`
+    ]);
+    
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+      
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "Laporan_Capaian_IKU.csv");
+    document.body.appendChild(link); // Required for FF
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleAdd = () => {
+    setEditingIku({
+      isNew: true,
+      kode: 'IKU-0X',
+      indikator: '',
+      target: '',
+      realisasi: '',
+      progressValue: 0,
+      status: 'On Track',
+      pic: ''
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleEdit = (iku: any) => {
+    setEditingIku(iku);
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Apakah Anda yakin ingin menghapus penetapan IKU ini?')) {
+      try {
+        await deleteDoc(doc(db, 'ikus', id));
+        alert('Data IKU berhasil dihapus.');
+      } catch (error) {
+        console.error("Error deleting IKU:", error);
+        alert('Gagal menghapus IKU.');
+      }
+    }
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    
+    try {
+      const payload = {
+        kode: editingIku.kode,
+        indikator: editingIku.indikator,
+        target: editingIku.target,
+        realisasi: editingIku.realisasi,
+        progressValue: Number(editingIku.progressValue),
+        status: editingIku.status,
+        pic: editingIku.pic
+      };
+
+      if (editingIku.isNew) {
+        await addDoc(collection(db, 'ikus'), {
+          ...payload,
+          createdAt: serverTimestamp()
+        });
+        alert('IKU baru berhasil ditambahkan.');
+      } else {
+        await updateDoc(doc(db, 'ikus', editingIku.id), {
+          ...payload,
+          updatedAt: serverTimestamp()
+        });
+        alert('Perubahan IKU berhasil disimpan.');
+      }
+      setIsModalOpen(false);
+    } catch (error: any) {
+      console.error("Error saving IKU:", error);
+      alert('Gagal menyimpan data: ' + error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const rataRataCapaian = dataIKU.length > 0 
+    ? (dataIKU.reduce((acc, curr) => acc + (Number(curr.progressValue) || 0), 0) / dataIKU.length).toFixed(1)
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -41,14 +147,16 @@ export default function CapaianIKUPage() {
           <p className="text-slate-600 mt-1">Pemantauan target strategis tahunan tingkat Eselon II (Pusbangjak).</p>
         </div>
         <div className="flex space-x-3">
-          <button className="flex items-center px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg shadow-sm hover:bg-slate-50 font-medium transition-colors">
+          <button onClick={handleExportCSV} className="flex items-center px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg shadow-sm hover:bg-slate-50 font-medium transition-colors">
             <Download className="w-4 h-4 mr-2" />
             Ekspor Data
           </button>
-          <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 font-medium transition-colors">
-            <Plus className="w-4 h-4 mr-2" />
-            Penetapan IKU Baru
-          </button>
+          {isAdminOrKapus && (
+            <button onClick={handleAdd} className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 font-medium transition-colors">
+              <Plus className="w-4 h-4 mr-2" />
+              Penetapan IKU Baru
+            </button>
+          )}
         </div>
       </div>
 
@@ -58,8 +166,8 @@ export default function CapaianIKUPage() {
             <Target className="w-5 h-5 mr-2" />
             <h3 className="font-semibold text-sm uppercase tracking-wider">Total IKU Tahunan</h3>
           </div>
-          <p className="text-3xl font-bold text-slate-800">3</p>
-          <p className="text-sm text-slate-500 mt-1">Target Eselon II Tahun 2026</p>
+          <p className="text-3xl font-bold text-slate-800">{dataIKU.length}</p>
+          <p className="text-sm text-slate-500 mt-1">Target Eselon II Aktif</p>
         </div>
         
         <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
@@ -67,8 +175,8 @@ export default function CapaianIKUPage() {
             <TrendingUp className="w-5 h-5 mr-2" />
             <h3 className="font-semibold text-sm uppercase tracking-wider">Rata-Rata Capaian</h3>
           </div>
-          <p className="text-3xl font-bold text-slate-800">88.3%</p>
-          <p className="text-sm text-slate-500 mt-1">Berdasarkan realisasi Triwulan III</p>
+          <p className="text-3xl font-bold text-slate-800">{rataRataCapaian}%</p>
+          <p className="text-sm text-slate-500 mt-1">Dari seluruh IKU berjalan</p>
         </div>
       </div>
 
@@ -82,50 +190,136 @@ export default function CapaianIKUPage() {
         </div>
         
         <div className="divide-y divide-slate-200">
-          {dataIKU.map((iku) => (
-            <div key={iku.id} className="p-6 hover:bg-slate-50 transition-colors">
-              <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-2">
-                    <span className="px-2.5 py-1 text-xs font-bold bg-slate-100 text-slate-700 rounded-md border border-slate-200">
-                      {iku.id}
-                    </span>
-                    <span className={`px-2.5 py-1 text-xs font-bold rounded-md border 
-                      ${iku.status === 'Tercapai' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
-                        iku.status === 'On Track' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
-                        'bg-amber-50 text-amber-700 border-amber-200'}`}
-                    >
-                      {iku.status}
-                    </span>
+          {isLoading ? (
+            <div className="p-8 text-center text-slate-500">Memuat data kinerja...</div>
+          ) : dataIKU.length === 0 ? (
+            <div className="p-8 text-center text-slate-500">Tidak ada penetapan IKU. Silakan tambah IKU baru.</div>
+          ) : (
+            dataIKU.map((iku) => (
+              <div key={iku.id} className="p-6 hover:bg-slate-50 transition-colors relative group">
+                {isAdminOrKapus && (
+                  <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-2">
+                    <button onClick={() => handleEdit(iku)} className="p-2 bg-white border border-slate-200 rounded-md text-blue-600 hover:bg-blue-50 shadow-sm" title="Edit">
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleDelete(iku.id)} className="p-2 bg-white border border-slate-200 rounded-md text-rose-600 hover:bg-rose-50 shadow-sm" title="Hapus">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
-                  <h4 className="text-base font-semibold text-slate-900 leading-snug">{iku.indikator}</h4>
-                  <p className="text-sm text-slate-500 mt-2">Cascading / PIC: <span className="font-medium text-slate-700">{iku.pic}</span></p>
-                </div>
+                )}
                 
-                <div className="w-full md:w-64 shrink-0 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-slate-500 font-medium">Realisasi:</span>
-                    <span className="font-bold text-slate-800">{iku.realisasi}</span>
-                  </div>
-                  <div className="flex justify-between text-sm mb-3">
-                    <span className="text-slate-500 font-medium">Target:</span>
-                    <span className="font-bold text-slate-800">{iku.target}</span>
+                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                  <div className="flex-1 pr-16">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <span className="px-2.5 py-1 text-xs font-bold bg-slate-100 text-slate-700 rounded-md border border-slate-200">
+                        {iku.kode}
+                      </span>
+                      <span className={`px-2.5 py-1 text-xs font-bold rounded-md border 
+                        ${iku.status === 'Tercapai' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
+                          iku.status === 'On Track' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
+                          'bg-amber-50 text-amber-700 border-amber-200'}`}
+                      >
+                        {iku.status}
+                      </span>
+                    </div>
+                    <h4 className="text-base font-semibold text-slate-900 leading-snug">{iku.indikator}</h4>
+                    <p className="text-sm text-slate-500 mt-2">Cascading / PIC: <span className="font-medium text-slate-700">{iku.pic}</span></p>
                   </div>
                   
-                  <div className="w-full bg-slate-200 rounded-full h-2">
-                    <div 
-                      className={`h-2 rounded-full ${iku.progressValue >= 100 ? 'bg-emerald-500' : iku.progressValue >= 75 ? 'bg-blue-500' : 'bg-amber-500'}`} 
-                      style={{ width: `${Math.min(iku.progressValue, 100)}%` }}
-                    ></div>
+                  <div className="w-full md:w-64 shrink-0 bg-slate-50 p-4 rounded-lg border border-slate-100">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-slate-500 font-medium">Realisasi:</span>
+                      <span className="font-bold text-slate-800">{iku.realisasi}</span>
+                    </div>
+                    <div className="flex justify-between text-sm mb-3">
+                      <span className="text-slate-500 font-medium">Target:</span>
+                      <span className="font-bold text-slate-800">{iku.target}</span>
+                    </div>
+                    
+                    <div className="w-full bg-slate-200 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full ${iku.progressValue >= 100 ? 'bg-emerald-500' : iku.progressValue >= 75 ? 'bg-blue-500' : 'bg-amber-500'}`} 
+                        style={{ width: `${Math.min(iku.progressValue, 100)}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-xs text-right mt-1.5 font-semibold text-slate-600">{Number(iku.progressValue).toFixed(1)}% Tercapai</p>
                   </div>
-                  <p className="text-xs text-right mt-1.5 font-semibold text-slate-600">{iku.progressValue.toFixed(1)}% Tercapai</p>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
+
+      {/* Modal IKU */}
+      {isModalOpen && editingIku && (
+        <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0">
+              <h3 className="text-lg font-bold text-slate-800">
+                {editingIku.isNew ? 'Penetapan IKU Baru' : 'Edit Capaian IKU'}
+              </h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSave} className="flex-1 overflow-y-auto">
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Kode IKU</label>
+                    <input type="text" required value={editingIku.kode} onChange={e => setEditingIku({...editingIku, kode: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Cth: IKU-01" />
+                  </div>
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Status Kinerja</label>
+                    <select required value={editingIku.status} onChange={e => setEditingIku({...editingIku, status: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50">
+                      <option value="On Track">On Track (Sesuai Jalur)</option>
+                      <option value="Tercapai">Tercapai</option>
+                      <option value="Needs Attention">Needs Attention (Butuh Perhatian)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Deskripsi Indikator Kinerja</label>
+                  <textarea required rows={3} value={editingIku.indikator} onChange={e => setEditingIku({...editingIku, indikator: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" placeholder="Masukkan deskripsi indikator..."></textarea>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Penanggung Jawab (PIC / Tim Cascading)</label>
+                  <input type="text" required value={editingIku.pic} onChange={e => setEditingIku({...editingIku, pic: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Cth: Tim Kebijakan Pembangunan Desa" />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Nilai Target</label>
+                    <input type="text" required value={editingIku.target} onChange={e => setEditingIku({...editingIku, target: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Cth: 85%" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Nilai Realisasi</label>
+                    <input type="text" required value={editingIku.realisasi} onChange={e => setEditingIku({...editingIku, realisasi: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Cth: 65%" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Persentase (%)</label>
+                    <input type="number" required min="0" max="100" step="0.1" value={editingIku.progressValue} onChange={e => setEditingIku({...editingIku, progressValue: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Cth: 76.4" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-end space-x-3 shrink-0">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-100 transition-colors">
+                  Batal
+                </button>
+                <button disabled={isSubmitting} type="submit" className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50">
+                  <Save className="w-4 h-4 mr-2" />
+                  {isSubmitting ? 'Menyimpan...' : 'Simpan IKU'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
