@@ -4,7 +4,7 @@ import { Users, UserPlus, Search, Shield, Trash2, Mail, Lock, X, Edit } from 'lu
 import { app, db } from '@/lib/firebase';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { getAuth, createUserWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from 'firebase/auth';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -53,7 +53,8 @@ export default function AdminUsersPage() {
     
     try {
       // Menggunakan Secondary App agar Admin tidak ter-logout saat membuat user baru
-      const secondaryApp = initializeApp(app.options, "Secondary");
+      const apps = getApps();
+      const secondaryApp = apps.find(a => a.name === "Secondary") || initializeApp(app.options, "Secondary");
       const secondaryAuth = getAuth(secondaryApp);
       
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
@@ -75,7 +76,7 @@ export default function AdminUsersPage() {
       await secondaryAuth.signOut();
       
       setIsModalOpen(false);
-      setNama(''); setEmail(''); setPassword(''); setRole('anggota');
+      setNama(''); setEmail(''); setPassword(''); setRole('pegawai');
       alert('Akun pengguna baru berhasil didaftarkan ke sistem!');
     } catch (error: any) {
       console.error("Error creating user: ", error);
