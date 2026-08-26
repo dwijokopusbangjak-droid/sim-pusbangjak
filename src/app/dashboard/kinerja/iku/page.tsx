@@ -4,11 +4,14 @@ import { Target, TrendingUp, Filter, Download, Plus, Edit, Trash2, X, Save } fro
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+
 export default function CapaianIKUPage() {
   const [dataIKU, setDataIKU] = useState<any[]>([]);
   const [teamsData, setTeamsData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [userRole, setUserRole] = useState('pegawai');
+  const [currentUserUid, setCurrentUserUid] = useState<string | null>(null);
   
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -18,7 +21,14 @@ export default function CapaianIKUPage() {
   useEffect(() => {
     // Check role from cookie for UI logic
     const match = document.cookie.match(new RegExp('(^| )userRole=([^;]+)'));
-    if (match) setUserRole(match[2]);
+    const roleFromCookie = match ? match[2] : 'pegawai';
+    setUserRole(roleFromCookie);
+
+    const auth = getAuth();
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (user) setCurrentUserUid(user.uid);
+      else setCurrentUserUid(null);
+    });
 
     // Fetch IKUs
     const qIku = query(collection(db, 'ikus'), orderBy('createdAt', 'desc'));
@@ -34,12 +44,14 @@ export default function CapaianIKUPage() {
       setIsLoading(false);
     });
 
-    // Fetch Teams for PIC selection
+    // Fetch Teams for PIC selection and filtering
     const qTeams = query(collection(db, 'teams'), orderBy('createdAt', 'desc'));
     const unsubscribeTeams = onSnapshot(qTeams, (snapshot) => {
       const teams = snapshot.docs.map(doc => ({
         id: doc.id,
-        nama: doc.data().nama
+        nama: doc.data().nama,
+        ketua_uid: doc.data().ketua_uid,
+        anggota_uids: doc.data().anggota_uids || []
       }));
       setTeamsData(teams);
     });
@@ -47,10 +59,23 @@ export default function CapaianIKUPage() {
     return () => {
       unsubscribeIku();
       unsubscribeTeams();
+      unsubscribeAuth();
     };
   }, []);
 
   const isAdminOrKapus = userRole === 'admin' || userRole === 'kapus';
+
+  // Logika Filter IKU berdasarkan Tim
+  const myTeamIds = teamsData
+    .filter(t => t.ketua_uid === currentUserUid || t.anggota_uids.includes(currentUserUid))
+    .map(t => t.id);
+
+  const displayedIKU = isAdminOrKapus 
+    ? dataIKU 
+    : dataIKU.filter(iku => {
+        const pic = iku.pic_teams || [];
+        return pic.some((teamId: string) => myTeamIds.includes(teamId));
+      });
 
   const handleExportCSV = () => {
     if (dataIKU.length === 0) {
@@ -176,8 +201,8 @@ export default function CapaianIKUPage() {
     }
   };
 
-  const rataRataCapaian = dataIKU.length > 0 
-    ? (dataIKU.reduce((acc, curr) => acc + (Number(curr.progressValue) || 0), 0) / dataIKU.length).toFixed(1)
+  const rataRataCapaian = displayedIKU.length > 0 
+    ? (displayedIKU.reduce((acc, curr) => acc + (Number(curr.progressValue) || 0), 0) / displayedIKU.length).toFixed(1)
     : 0;
 
   return (
@@ -207,7 +232,7 @@ export default function CapaianIKUPage() {
             <Target className="w-5 h-5 mr-2" />
             <h3 className="font-semibold text-sm uppercase tracking-wider">Total IKU Tahunan</h3>
           </div>
-          <p className="text-3xl font-bold text-slate-800">{dataIKU.length}</p>
+          <p className="text-3xl font-bold text-slate-800">{displayedIKU.length}</p>
           <p className="text-sm text-slate-500 mt-1">Target Eselon II Aktif</p>
         </div>
         
@@ -233,10 +258,10 @@ export default function CapaianIKUPage() {
         <div className="divide-y divide-slate-200">
           {isLoading ? (
             <div className="p-8 text-center text-slate-500">Memuat data kinerja...</div>
-          ) : dataIKU.length === 0 ? (
+          ) : displayedIKU.length === 0 ? (
             <div className="p-8 text-center text-slate-500">Tidak ada penetapan IKU. Silakan tambah IKU baru.</div>
           ) : (
-            dataIKU.map((iku) => (
+            displayedIKU.map((iku) => (
               <div key={iku.id} className="p-6 hover:bg-slate-50 transition-colors relative group">
                 {isAdminOrKapus && (
                   <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-2">

@@ -72,76 +72,28 @@ export default async function DashboardLayout({
             {/* Modul Kinerja & Perencanaan */}
             <div className="pt-4 pb-1">
               <p className="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Kinerja & Perencanaan
+                Sistem Akuntabilitas
               </p>
             </div>
-            {(isKapus || isPegawai) && (
-              <Link href="/dashboard/kinerja/iku" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
-                <Target className="mr-3 h-5 w-5 text-slate-400" />
-                Capaian IKU
-              </Link>
-            )}
-            <Link href="/dashboard/kinerja/mph" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
-              <Layers className="mr-3 h-5 w-5 text-slate-400" />
-              Matriks Peran Hasil
+            
+            <Link href="/dashboard/kinerja/iku" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
+              <Target className="mr-3 h-5 w-5 text-slate-400" />
+              Penetapan IKU (Kapus)
             </Link>
-            {(isPegawai || isKapus || isKtu) && (
-              <Link href="/dashboard/kinerja/laporan" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
-                <BarChart2 className="mr-3 h-5 w-5 text-slate-400" />
-                Laporan & Mitigasi Risiko
-              </Link>
-            )}
-
-            {/* Modul Pekerjaan & Penugasan */}
-            <div className="pt-4 pb-1">
-              <p className="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Manajemen Pekerjaan
-              </p>
-            </div>
+            
             {isPegawai && (
-              <Link href="/dashboard/pekerjaan/tim" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
-                <UsersRound className="mr-3 h-5 w-5 text-slate-400" />
-                Workspace Tim
+              <Link href="/dashboard/kinerja/kegiatan" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
+                <CheckSquare className="mr-3 h-5 w-5 text-slate-400" />
+                Kegiatan (Ketua Tim)
               </Link>
             )}
-            <Link href="/dashboard/pekerjaan/tugas" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
-              <CheckSquare className="mr-3 h-5 w-5 text-slate-400" />
-              Tugas & Progres
-            </Link>
-
-            {/* Modul Layanan TU */}
-            <div className="pt-4 pb-1">
-              <p className="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Layanan Administrasi
-              </p>
-            </div>
-            <Link href="/dashboard/layanan-tu/surat-tugas" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
-              <Send className="mr-3 h-5 w-5 text-slate-400" />
-              Pengajuan Surat Tugas
-            </Link>
-            <Link href="/dashboard/layanan-tu/surat-keterangan" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
-              <FileText className="mr-3 h-5 w-5 text-slate-400" />
-              Pengajuan S. Keterangan
-            </Link>
-            <Link href="/dashboard/layanan-tu/desain" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
-              <PenTool className="mr-3 h-5 w-5 text-slate-400" />
-              Pengajuan Desain
-            </Link>
-            <Link href="/dashboard/layanan-tu/rapat" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
-              <Calendar className="mr-3 h-5 w-5 text-slate-400" />
-              Booking & Rapat
-            </Link>
-
-            {/* Kepegawaian */}
-            <div className="pt-4 pb-1">
-              <p className="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Kepegawaian
-              </p>
-            </div>
-            <Link href="/dashboard/kepegawaian/profil" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
-              <Users className="mr-3 h-5 w-5 text-slate-400" />
-              Profil & Riwayat
-            </Link>
+            
+            {isPegawai && (
+              <Link href="/dashboard/kinerja/matriks" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
+                <Layers className="mr-3 h-5 w-5 text-slate-400" />
+                Matriks Peran (Anggota)
+              </Link>
+            )}
 
             {/* Menu Administrator */}
             {isAdmin && (
@@ -158,10 +110,6 @@ export default async function DashboardLayout({
                 <Link href="/dashboard/admin/teams" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
                   <Briefcase className="mr-3 h-5 w-5 text-slate-400" />
                   Master Data Tim
-                </Link>
-                <Link href="/dashboard/admin/roles" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
-                  <Shield className="mr-3 h-5 w-5 text-slate-400" />
-                  Konfigurasi Sistem
                 </Link>
               </>
             )}
